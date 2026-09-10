@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuthority } from '../context/AuthorityContext';
+import { useAuth } from '../context/AuthContext';
 import { MapView } from '../components/MapView';
 import { TouristDetailDrawer } from '../components/TouristDetailDrawer';
 import { DemoScenarioModal } from '../components/DemoScenarioModal';
@@ -10,6 +11,7 @@ import {
 import { Link, useNavigate } from 'react-router-dom';
 
 export const AuthorityCommandCenter = () => {
+  const { isAuthority, loginAsAuthority } = useAuth();
   const { 
     tourists, 
     dangerZones, 
@@ -20,6 +22,13 @@ export const AuthorityCommandCenter = () => {
     loadDemoScenario 
   } = useAuthority();
   const navigate = useNavigate();
+
+  // Ensure authority session is active on direct route access or refresh
+  useEffect(() => {
+    if (!isAuthority) {
+      loginAsAuthority();
+    }
+  }, [isAuthority]);
 
   const [demoModalOpen, setDemoModalOpen] = useState(false);
   const [mapCenter, setMapCenter] = useState([12.3052, 76.6552]);

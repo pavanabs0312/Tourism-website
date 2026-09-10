@@ -2,7 +2,7 @@ import { db, hasValidConfig } from './firebase';
 import { 
   collection, doc, setDoc, getDoc, getDocs, updateDoc, onSnapshot, query, orderBy, limit, where 
 } from 'firebase/firestore';
-import { INITIAL_DEMO_TOURISTS, INITIAL_DANGER_ZONES, INITIAL_ALERTS, INITIAL_SERVICES } from '../data/mockData';
+import { INITIAL_DEMO_TOURISTS, INITIAL_DANGER_ZONES, INITIAL_ALERTS, INITIAL_SERVICES, INITIAL_BOOKINGS } from '../data/mockData';
 
 // BroadcastChannel for instant multi-tab zero-config synchronization in demo mode
 const syncChannel = typeof window !== 'undefined' && window.BroadcastChannel 
@@ -15,7 +15,8 @@ const STORAGE_KEYS = {
   EMERGENCIES: 'atg_emergencies_v1',
   DANGER_ZONES: 'atg_danger_zones_v1',
   ALERTS: 'atg_alerts_v1',
-  SERVICES: 'atg_services_v1'
+  SERVICES: 'atg_services_v1',
+  BOOKINGS: 'atg_bookings_v1'
 };
 
 // Memory & LocalStorage fallback helpers
@@ -87,6 +88,9 @@ if (typeof window !== 'undefined') {
   }
   if (!localStorage.getItem(STORAGE_KEYS.SERVICES)) {
     localStorage.setItem(STORAGE_KEYS.SERVICES, JSON.stringify(INITIAL_SERVICES));
+  }
+  if (!localStorage.getItem(STORAGE_KEYS.BOOKINGS)) {
+    localStorage.setItem(STORAGE_KEYS.BOOKINGS, JSON.stringify(INITIAL_BOOKINGS));
   }
 }
 
@@ -621,19 +625,84 @@ export const firebaseService = {
     setStoredData(STORAGE_KEYS.DANGER_ZONES, zones);
   },
 
-  // 14. Reset / Load Hackathon Demo Scenario
+  // 14. Hotel Booking Engine Methods
+  async createBooking(bookingData) {
+    const bookingId = bookingData.bookingId || `BK-${new Date().getFullYear()}-${Math.floor(10000 + Math.random() * 90000)}`;
+    const newBooking = {
+      ...bookingData,
+      bookingId,
+      status: 'CONFIRMED',
+      bookedAt: new Date().toISOString(),
+      isDemoBooking: true
+    };
+
+    const bookings = getStoredData(STORAGE_KEYS.BOOKINGS, INITIAL_BOOKINGS);
+    bookings.unshift(newBooking);
+    setStoredData(STORAGE_KEYS.BOOKINGS, bookings);
+
+    if (this.isLiveFirebase()) {
+      try {
+        await setDoc(doc(db, 'bookings', bookingId), newBooking);
+      } catch (e) {
+        console.warn('Firestore booking save fallback to local storage:', e);
+      }
+    }
+
+    return newBooking;
+  },
+
+  getBookings(touristId = null) {
+    const bookings = getStoredData(STORAGE_KEYS.BOOKINGS, INITIAL_BOOKINGS);
+    if (!touristId) return bookings;
+    return bookings.filter(b => b.touristId === touristId || b.touristTag === touristId);
+  },
+
+  subscribeBookings(callback) {
+    if (this.isLiveFirebase()) {
+      try {
+        const q = collection(db, 'bookings');
+        return onSnapshot(q, (snapshot) => {
+          const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+          callback(docs.length > 0 ? docs : getStoredData(STORAGE_KEYS.BOOKINGS, INITIAL_BOOKINGS));
+        });
+      } catch (e) {}
+    }
+
+    const emit = () => {
+      callback(getStoredData(STORAGE_KEYS.BOOKINGS, INITIAL_BOOKINGS));
+    };
+
+    emit();
+
+    const handleSync = (e) => {
+      if (!e.detail || e.detail.key === STORAGE_KEYS.BOOKINGS) emit();
+    };
+
+    window.addEventListener('atg_local_sync', handleSync);
+    if (syncChannel) syncChannel.addEventListener('message', (msg) => {
+      if (msg.data?.key === STORAGE_KEYS.BOOKINGS) emit();
+    });
+
+    return () => {
+      window.removeEventListener('atg_local_sync', handleSync);
+    };
+  },
+
+  // 15. Reset / Load Hackathon Demo Scenario
   resetToDemoScenario() {
     setStoredData(STORAGE_KEYS.TOURISTS, INITIAL_DEMO_TOURISTS);
     setStoredData(STORAGE_KEYS.TRIPS, INITIAL_TRIPS);
     setStoredData(STORAGE_KEYS.DANGER_ZONES, INITIAL_DANGER_ZONES);
     setStoredData(STORAGE_KEYS.ALERTS, INITIAL_ALERTS);
     setStoredData(STORAGE_KEYS.SERVICES, INITIAL_SERVICES);
+    setStoredData(STORAGE_KEYS.BOOKINGS, INITIAL_BOOKINGS);
     return {
       tourists: INITIAL_DEMO_TOURISTS,
       trips: INITIAL_TRIPS,
       dangerZones: INITIAL_DANGER_ZONES,
       alerts: INITIAL_ALERTS,
-      services: INITIAL_SERVICES
+      services: INITIAL_SERVICES,
+      bookings: INITIAL_BOOKINGS
     };
   }
 };

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useTourist } from '../context/TouristContext';
 import { useAuth } from '../context/AuthContext';
 import { smartTransportSuggestionService } from '../services/smartTransportSuggestionService';
@@ -23,6 +23,7 @@ export const TripPlannerPage = () => {
   const { activeTrip, setActiveTrip, tripStops } = useTourist();
   const { currentUser } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   // Read all traveler details & journey parameters strictly from activeTrip (Single Source of Truth)
   const travelerDetails = activeTrip?.travelerDetails || {};
@@ -34,7 +35,25 @@ export const TripPlannerPage = () => {
   const selectedModes = activeTrip?.selectedTransportModes || [];
 
   // Current view phase: 'PLANNER' (AI Journey) | 'SAFETY' (Safety Check) | 'SUMMARY' (Confirmation & Stays)
-  const [currentStep, setCurrentStep] = useState('PLANNER');
+  const getInitialStep = () => {
+    const params = new URLSearchParams(location.search);
+    const stepParam = params.get('step')?.toUpperCase();
+    if (stepParam && ['PLANNER', 'SAFETY', 'SUMMARY'].includes(stepParam)) {
+      return stepParam;
+    }
+    return 'PLANNER';
+  };
+
+  const [currentStep, setCurrentStep] = useState(getInitialStep);
+
+  // Sync if URL search parameter changes
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const stepParam = params.get('step')?.toUpperCase();
+    if (stepParam && ['PLANNER', 'SAFETY', 'SUMMARY'].includes(stepParam)) {
+      setCurrentStep(stepParam);
+    }
+  }, [location.search]);
 
   // Multi-Modal Journey Segments & Timings
   const [journeySegments, setJourneySegments] = useState(activeTrip?.journeySegments || []);
@@ -291,7 +310,7 @@ export const TripPlannerPage = () => {
     destinationCoords
   ] : [];
 
-  // Guard: If no active trip entered, show clear prompt to fill details
+  // Guard: If no active trip entered, show clear prompt to fill details or load demo
   if (!originLocation || !destinationLocation || selectedModes.length === 0) {
     return (
       <div style={{ backgroundColor: '#f8fafc', padding: '4rem 1rem', minHeight: 'calc(100vh - 68px)', textAlign: 'center' }}>
@@ -303,12 +322,46 @@ export const TripPlannerPage = () => {
             No Active Journey Configured
           </h2>
           <p style={{ fontSize: '0.9rem', color: '#64748b', lineHeight: 1.5, marginBottom: '1.75rem' }}>
-            Please enter your traveler details, starting location, final destination, and preferred transport modes in the Travel Details form first.
+            Please enter your traveler details, starting location, final destination, and preferred transport modes in the Travel Details form, or load the hackathon demo journey.
           </p>
-          <Link to="/destination-planner" className="btn btn-primary" style={{ padding: '0.85rem 1.8rem', fontSize: '1rem', fontWeight: '800', display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
-            <span>Open Travel Details Form</span>
-            <ArrowRight size={18} />
-          </Link>
+          <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              onClick={() => {
+                const tomorrow = new Date();
+                tomorrow.setDate(tomorrow.getDate() + 1);
+                const tomorrowStr = tomorrow.toISOString().split('T')[0];
+                setActiveTrip({
+                  travelerDetails: {
+                    fullName: currentUser?.name || 'Demo Traveler',
+                    email: currentUser?.email || 'traveler@example.com',
+                    contactNumber: currentUser?.mobile || '+91 98765 43210',
+                    emergencyContactName: currentUser?.emergencyContact || 'Jane Doe',
+                    emergencyContactNumber: currentUser?.emergencyContactNumber || '+91 98765 43211',
+                    emergencyRelationship: currentUser?.emergencyRelationship || 'Sister',
+                    emergencyDisplay: 'Jane Doe (Sister) • +91 98765 43211'
+                  },
+                  journeyOrigin: 'Bengaluru City Center',
+                  journeyDestination: 'Mysuru Palace',
+                  travelDate: tomorrowStr,
+                  travelTime: '09:15',
+                  travellersCount: 2,
+                  selectedTransportModes: ['train', 'walking'],
+                  title: 'Multi-Modal Journey to Mysuru Palace',
+                  status: 'PLANNING'
+                });
+              }}
+              className="btn btn-primary"
+              style={{ padding: '0.85rem 1.4rem', fontSize: '0.95rem', fontWeight: '800', display: 'inline-flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}
+            >
+              <Sparkles size={18} />
+              <span>Load Demo Journey (Bengaluru ➔ Mysuru)</span>
+            </button>
+            <Link to="/destination-planner" className="btn btn-secondary" style={{ padding: '0.85rem 1.4rem', fontSize: '0.95rem', fontWeight: '700', display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
+              <span>Open Travel Details Form</span>
+              <ArrowRight size={18} />
+            </Link>
+          </div>
         </div>
       </div>
     );
@@ -321,86 +374,128 @@ export const TripPlannerPage = () => {
         {/* Step Progression Bar (4-Step Flow) */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '0.75rem', marginBottom: '1.75rem' }}>
           {/* 1. Trip Details */}
-          <Link to="/destination-planner" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', backgroundColor: '#ffffff', padding: '0.65rem 0.85rem', borderRadius: '10px', border: '1px solid #e2e8f0', textDecoration: 'none' }}>
+          <Link 
+            to="/destination-planner" 
+            title="Click to edit 1. Trip Details (Traveler & destinations)"
+            style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '0.5rem', 
+              backgroundColor: '#ffffff', 
+              padding: '0.65rem 0.85rem', 
+              borderRadius: '10px', 
+              border: '1.5px solid #cbd5e1', 
+              textDecoration: 'none',
+              transition: 'all 0.2s ease',
+              boxShadow: '0 2px 6px rgba(0,0,0,0.03)'
+            }}
+          >
             <div style={{ width: '28px', height: '28px', borderRadius: '50%', backgroundColor: '#10b981', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '800', fontSize: '0.82rem', flexShrink: 0 }}>
               ✓
             </div>
             <div>
               <strong style={{ fontSize: '0.85rem', color: '#065f46', display: 'block' }}>1. Trip Details</strong>
-              <span style={{ fontSize: '0.68rem', color: '#64748b' }}>{travelerDetails.fullName || 'Registered'}</span>
+              <span style={{ fontSize: '0.68rem', color: '#64748b' }}>Traveler & destinations</span>
             </div>
           </Link>
 
           {/* 2. AI Journey */}
-          <div 
-            onClick={() => { setCurrentStep('PLANNER'); setIsJourneyActive(false); }}
+          <button 
+            type="button"
+            onClick={() => { setCurrentStep('PLANNER'); setIsJourneyActive(false); navigate('/trip-planner?step=PLANNER', { replace: true }); }}
+            title="Click to view 2. AI Journey (Multi-modal chain)"
             style={{ 
               display: 'flex', 
               alignItems: 'center', 
               gap: '0.5rem', 
-              backgroundColor: '#ffffff', 
+              backgroundColor: currentStep === 'PLANNER' ? '#eff6ff' : '#ffffff', 
               padding: '0.65rem 0.85rem', 
               borderRadius: '10px', 
-              border: currentStep === 'PLANNER' ? '2px solid #2563eb' : '1px solid #e2e8f0',
-              cursor: 'pointer'
+              border: currentStep === 'PLANNER' ? '2px solid #2563eb' : '1.5px solid #cbd5e1',
+              boxShadow: currentStep === 'PLANNER' ? '0 3px 10px rgba(37,99,235,0.12)' : '0 2px 6px rgba(0,0,0,0.03)',
+              cursor: 'pointer',
+              textAlign: 'left',
+              width: '100%',
+              transition: 'all 0.2s ease'
             }}
           >
             <div style={{ width: '28px', height: '28px', borderRadius: '50%', backgroundColor: currentStep === 'PLANNER' ? '#2563eb' : '#eff6ff', color: currentStep === 'PLANNER' ? '#ffffff' : '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '800', fontSize: '0.82rem', flexShrink: 0 }}>
               2
             </div>
-            <div>
-              <strong style={{ fontSize: '0.85rem', color: '#0f172a', display: 'block' }}>2. AI Journey</strong>
-              <span style={{ fontSize: '0.68rem', color: '#64748b' }}>{selectedModes.length} Connected Legs</span>
+            <div style={{ flex: 1 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <strong style={{ fontSize: '0.85rem', color: currentStep === 'PLANNER' ? '#1d4ed8' : '#0f172a', display: 'block' }}>2. AI Journey</strong>
+                {currentStep === 'PLANNER' && <span style={{ fontSize: '0.6rem', color: '#1d4ed8', fontWeight: '800' }}>ACTIVE</span>}
+              </div>
+              <span style={{ fontSize: '0.68rem', color: '#64748b' }}>Multi-modal chain</span>
             </div>
-          </div>
+          </button>
 
           {/* 3. Safety Check */}
-          <div 
-            onClick={() => { setCurrentStep('SAFETY'); setIsJourneyActive(false); }}
+          <button 
+            type="button"
+            onClick={() => { setCurrentStep('SAFETY'); setIsJourneyActive(false); navigate('/trip-planner?step=SAFETY', { replace: true }); }}
+            title="Click to view 3. Safety Check (Risk & route audit)"
             style={{ 
               display: 'flex', 
               alignItems: 'center', 
               gap: '0.5rem', 
-              backgroundColor: '#ffffff', 
+              backgroundColor: currentStep === 'SAFETY' ? '#eff6ff' : '#ffffff', 
               padding: '0.65rem 0.85rem', 
               borderRadius: '10px', 
-              border: currentStep === 'SAFETY' ? '2px solid #2563eb' : '1px solid #e2e8f0',
-              cursor: 'pointer'
+              border: currentStep === 'SAFETY' ? '2px solid #2563eb' : '1.5px solid #cbd5e1',
+              boxShadow: currentStep === 'SAFETY' ? '0 3px 10px rgba(37,99,235,0.12)' : '0 2px 6px rgba(0,0,0,0.03)',
+              cursor: 'pointer',
+              textAlign: 'left',
+              width: '100%',
+              transition: 'all 0.2s ease'
             }}
           >
             <div style={{ width: '28px', height: '28px', borderRadius: '50%', backgroundColor: currentStep === 'SAFETY' ? '#2563eb' : '#eff6ff', color: currentStep === 'SAFETY' ? '#ffffff' : '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '800', fontSize: '0.82rem', flexShrink: 0 }}>
               3
             </div>
-            <div>
-              <strong style={{ fontSize: '0.85rem', color: '#0f172a', display: 'block' }}>3. Safety Check</strong>
-              <span style={{ fontSize: '0.68rem', color: '#059669' }}>Score: {dynamicSafetyScore}/100</span>
+            <div style={{ flex: 1 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <strong style={{ fontSize: '0.85rem', color: currentStep === 'SAFETY' ? '#1d4ed8' : '#0f172a', display: 'block' }}>3. Safety Check</strong>
+                {currentStep === 'SAFETY' && <span style={{ fontSize: '0.6rem', color: '#1d4ed8', fontWeight: '800' }}>ACTIVE</span>}
+              </div>
+              <span style={{ fontSize: '0.68rem', color: '#059669' }}>Risk & route audit ({dynamicSafetyScore}/100)</span>
             </div>
-          </div>
+          </button>
 
           {/* 4. Confirmation */}
-          <div 
-            onClick={() => { setCurrentStep('SUMMARY'); setIsJourneyActive(false); }}
+          <button 
+            type="button"
+            onClick={() => { setCurrentStep('SUMMARY'); setIsJourneyActive(false); navigate('/trip-planner?step=SUMMARY', { replace: true }); }}
+            title="Click to view 4. Confirmation (Safety & stay dossier)"
             style={{ 
               display: 'flex', 
               alignItems: 'center', 
               gap: '0.5rem', 
-              backgroundColor: '#ffffff', 
+              backgroundColor: currentStep === 'SUMMARY' ? '#f0fdf4' : '#ffffff', 
               padding: '0.65rem 0.85rem', 
               borderRadius: '10px', 
-              border: currentStep === 'SUMMARY' ? '2px solid #10b981' : '1px solid #e2e8f0',
-              cursor: 'pointer'
+              border: currentStep === 'SUMMARY' ? '2px solid #10b981' : '1.5px solid #cbd5e1',
+              boxShadow: currentStep === 'SUMMARY' ? '0 3px 10px rgba(16,185,129,0.12)' : '0 2px 6px rgba(0,0,0,0.03)',
+              cursor: 'pointer',
+              textAlign: 'left',
+              width: '100%',
+              transition: 'all 0.2s ease'
             }}
           >
-            <div style={{ width: '28px', height: '28px', borderRadius: '50%', backgroundColor: isTripConfirmed ? '#10b981' : (currentStep === 'SUMMARY' ? '#2563eb' : '#f1f5f9'), color: isTripConfirmed || currentStep === 'SUMMARY' ? '#ffffff' : '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '800', fontSize: '0.82rem', flexShrink: 0 }}>
+            <div style={{ width: '28px', height: '28px', borderRadius: '50%', backgroundColor: isTripConfirmed ? '#10b981' : (currentStep === 'SUMMARY' ? '#10b981' : '#f1f5f9'), color: isTripConfirmed || currentStep === 'SUMMARY' ? '#ffffff' : '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '800', fontSize: '0.82rem', flexShrink: 0 }}>
               {isTripConfirmed ? '✓' : '4'}
             </div>
-            <div>
-              <strong style={{ fontSize: '0.85rem', color: '#0f172a', display: 'block' }}>4. Confirmation</strong>
+            <div style={{ flex: 1 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <strong style={{ fontSize: '0.85rem', color: currentStep === 'SUMMARY' ? '#047857' : '#0f172a', display: 'block' }}>4. Confirmation</strong>
+                {currentStep === 'SUMMARY' && <span style={{ fontSize: '0.6rem', color: '#047857', fontWeight: '800' }}>ACTIVE</span>}
+              </div>
               <span style={{ fontSize: '0.68rem', color: isTripConfirmed ? '#059669' : '#64748b' }}>
-                {isTripConfirmed ? 'Trip Confirmed' : 'Review & Confirm'}
+                {isTripConfirmed ? 'Dossier Confirmed' : 'Safety & stay dossier'}
               </span>
             </div>
-          </div>
+          </button>
         </div>
 
         {/* Traveler Quick Banner (Strictly using user's real input) */}

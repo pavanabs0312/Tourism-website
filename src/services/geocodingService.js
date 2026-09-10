@@ -1,29 +1,26 @@
-import { POPULAR_DESTINATIONS } from '../data/mockData';
+import { destinationService } from './destinationService';
 
 /**
  * Geocoding and Place Search Service
- * Connects to OpenStreetMap Nominatim / Photon API with instant curated fallback catalog.
+ * Connects to OpenStreetMap Nominatim for India (countrycodes=in)
+ * with instant comprehensive Pan-India curated database integration.
  */
 
 export const geocodingService = {
   /**
-   * Search places by text query
+   * Search places by text query across India
    */
   async searchPlaces(query) {
     if (!query || query.trim().length < 2) return [];
 
     const cleanQuery = query.trim().toLowerCase();
 
-    // 1. First check instant local curated database
-    const localMatches = POPULAR_DESTINATIONS.filter(dest =>
-      dest.name.toLowerCase().includes(cleanQuery) ||
-      dest.location.toLowerCase().includes(cleanQuery) ||
-      dest.category.toLowerCase().includes(cleanQuery)
-    );
+    // 1. First search comprehensive curated Pan-India destination database
+    const localMatches = destinationService.searchCuratedDestinations(cleanQuery);
 
-    // 2. Query OpenStreetMap Nominatim API (with countrycode limit to in / global search)
+    // 2. Query OpenStreetMap Nominatim API limited to India
     try {
-      const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=6&addressdetails=1`;
+      const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&countrycodes=in&limit=6&addressdetails=1`;
       const response = await fetch(url, {
         headers: { 'Accept-Language': 'en' },
         signal: AbortSignal.timeout(4500)
@@ -32,14 +29,12 @@ export const geocodingService = {
       if (response.ok) {
         const results = await response.json();
         const apiPlaces = results.map((item, idx) => ({
-          id: `osm-${item.place_id || idx}-${Date.now()}`,
+          id: `osm-${item.place_id || idx}`,
           name: item.name || item.display_name.split(',')[0],
           location: item.display_name,
-          category: item.type ? item.type.replace('_', ' ').toUpperCase() : 'Attraction / Place',
+          category: item.type ? item.type.replace(/_/g, ' ').toUpperCase() : 'Attraction / Place',
           latitude: parseFloat(item.lat),
           longitude: parseFloat(item.lon),
-          rating: 4.5,
-          reviews: 1200,
           description: `Location in ${item.display_name.split(',').slice(-3, -1).join(', ')}.`
         }));
 
@@ -56,7 +51,8 @@ export const geocodingService = {
       console.warn('[Geocoding] Nominatim live search offline, using local database:', e.message);
     }
 
-    return localMatches.length > 0 ? localMatches : POPULAR_DESTINATIONS.slice(0, 4);
+    // Return exact matches or empty array if nothing found (NO fake fallbacks)
+    return localMatches;
   },
 
   /**

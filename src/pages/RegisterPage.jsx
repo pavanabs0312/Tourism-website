@@ -206,9 +206,9 @@ export const RegisterPage = () => {
 
       setRegisteredTag(newTourist.touristTag || newTourist.touristId);
 
-      // Route directly to Destination Planning
+      // Route directly to Trip Planning
       setTimeout(() => {
-        navigate('/destination-planner');
+        navigate('/plan-trip');
       }, 1000);
     } catch (err) {
       console.error('Registration failed:', err);

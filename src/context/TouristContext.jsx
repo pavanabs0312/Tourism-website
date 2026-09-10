@@ -132,9 +132,15 @@ export const TouristProvider = ({ children }) => {
     }
   }, [currentUser?.touristId, sosActive, activeTrip.status]);
 
-  // Start Real-Time GPS Tracking
+  // Start Real-Time GPS Tracking ONLY when Protected Journey is Active or SOS triggered
+  const isProtectedJourneyActive = isTourist && (activeTrip.status === 'ACTIVE' || sosActive);
+
   useEffect(() => {
-    if (!isTourist) return;
+    if (!isProtectedJourneyActive) {
+      locationService.stopWatching();
+      setGpsActive(false);
+      return;
+    }
 
     setGpsActive(true);
     const watchId = locationService.startWatching(
@@ -151,7 +157,7 @@ export const TouristProvider = ({ children }) => {
       locationService.stopWatching();
       setGpsActive(false);
     };
-  }, [isTourist]);
+  }, [isProtectedJourneyActive]);
 
   // Calculate Route Deviation (Cross-Track Distance to planned route geometry)
   const calculateRouteDeviation = (lat, lng, routeCoords) => {
@@ -448,7 +454,9 @@ export const TouristProvider = ({ children }) => {
         activeTrip,
         setActiveTrip,
         startTrip,
+        startProtectedJourney: startTrip,
         completeTrip,
+        isProtectedJourneyActive,
         tripHistory,
         lastCompletedTripSummary,
         generatedItinerary,

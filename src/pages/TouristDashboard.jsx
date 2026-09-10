@@ -12,7 +12,7 @@ import { RiskCard } from '../components/RiskCard';
 import { SOSButton } from '../components/SOSButton';
 
 export const TouristDashboard = () => {
-  const { currentUser } = useAuth();
+  const { currentUser, userBookings = [] } = useAuth();
   const { 
     telemetry, 
     riskAssessment, 
@@ -48,7 +48,7 @@ export const TouristDashboard = () => {
     accuracyColor = '#f59e0b';
   }
 
-  const displayName = currentUser?.name || 'pav';
+  const displayName = currentUser?.name || 'Pavana Sharma';
   const displayTag = currentUser?.touristTag || currentUser?.touristId || 'TG-2026-752019';
   const journeySegments = activeTrip?.journeySegments?.length > 0
     ? activeTrip.journeySegments
@@ -111,19 +111,74 @@ export const TouristDashboard = () => {
               style={{ fontSize: '0.85rem' }}
             >
               {isTripActive ? <AlertOctagon size={16} /> : <Compass size={16} />}
-              <span>{isTripActive ? 'End Trip' : 'Start Trip'}</span>
+              <span>{isTripActive ? 'End Trip' : 'Start Protected Journey'}</span>
             </button>
+
+            <Link to="/my-trips" className="btn btn-secondary" style={{ fontSize: '0.85rem' }}>
+              <Route size={16} />
+              <span>My Trips ({userBookings.length})</span>
+            </Link>
 
             <Link to="/emergency" className="btn btn-danger" style={{ fontSize: '0.85rem' }}>
               <PhoneCall size={16} />
               <span>Emergency SOS</span>
             </Link>
 
-            <Link to="/destination-planner" className="btn btn-secondary" style={{ fontSize: '0.85rem' }}>
+            <Link to="/plan-trip" className="btn btn-secondary" style={{ fontSize: '0.85rem' }}>
               <span>Plan / Edit Trip</span>
             </Link>
           </div>
         </div>
+
+        {/* Upcoming Stay Widget (Section 32) */}
+        {userBookings && userBookings.length > 0 && (
+          <div className="card" style={{
+            marginBottom: '1.5rem',
+            padding: '1rem 1.25rem',
+            backgroundColor: '#ffffff',
+            border: '1px solid #bfdbfe',
+            borderRadius: '12px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '1rem'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+              <div style={{ width: '44px', height: '44px', borderRadius: '10px', backgroundColor: '#eff6ff', color: '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Building size={22} />
+              </div>
+              <div>
+                <div style={{ fontSize: '0.72rem', fontWeight: '800', color: '#2563eb', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  UPCOMING STAY
+                </div>
+                <div style={{ fontSize: '1.08rem', fontWeight: '800', color: '#0f172a' }}>
+                  🏨 {userBookings[0].hotelName}
+                </div>
+                <div style={{ fontSize: '0.78rem', color: '#475569' }}>
+                  📅 {userBookings[0].checkInDate} – {userBookings[0].checkOutDate} • 📍 {userBookings[0].destination} • {userBookings[0].roomType}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+              <Link
+                to="/my-trips"
+                className="btn btn-primary"
+                style={{ fontSize: '0.8rem', padding: '0.45rem 0.9rem' }}
+              >
+                View Booking
+              </Link>
+              <Link
+                to={`/plan-trip?destination=${encodeURIComponent(userBookings[0].destination)}`}
+                className="btn btn-secondary"
+                style={{ fontSize: '0.8rem', padding: '0.45rem 0.9rem' }}
+              >
+                Plan Travel
+              </Link>
+            </div>
+          </div>
+        )}
 
         {/* Multi-Modal Connected Journey Strip */}
         {journeySegments.length > 0 && (
@@ -277,7 +332,7 @@ export const TouristDashboard = () => {
                 </div>
               </div>
 
-              <Link to="/destination-planner" style={{ fontSize: '0.75rem', color: '#2563eb', fontWeight: '700' }}>
+              <Link to="/plan-trip" style={{ fontSize: '0.75rem', color: '#2563eb', fontWeight: '700' }}>
                 Change
               </Link>
             </div>

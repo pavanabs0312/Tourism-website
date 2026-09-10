@@ -162,6 +162,62 @@ export const DemoScenarioModal = ({ isOpen, onClose }) => {
           </button>
         </div>
 
+        {/* Featured Hackathon Scenario: Mysuru 2-Day Safe Trip */}
+        <div style={{
+          backgroundColor: '#eff6ff',
+          border: '2px solid #3b82f6',
+          borderRadius: '12px',
+          padding: '1.15rem',
+          marginBottom: '1.25rem',
+          boxShadow: '0 4px 12px rgba(37,99,235,0.1)'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.5rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              <span style={{ fontSize: '0.68rem', fontWeight: '900', backgroundColor: '#2563eb', color: '#ffffff', padding: '0.2rem 0.6rem', borderRadius: '4px', letterSpacing: '0.04em' }}>
+                🌟 HACKATHON FEATURED
+              </span>
+              <span style={{ fontSize: '0.72rem', fontWeight: '800', backgroundColor: '#ecfdf5', color: '#065f46', padding: '0.2rem 0.55rem', borderRadius: '4px' }}>
+                2 Days • 1 Night
+              </span>
+            </div>
+            <span style={{ fontSize: '0.75rem', fontWeight: '700', color: '#1d4ed8' }}>
+              Mysuru, Karnataka
+            </span>
+          </div>
+
+          <h3 style={{ fontSize: '1.15rem', fontWeight: '900', color: '#0f172a', margin: '0.2rem 0 0.35rem' }}>
+            Mysuru 2-Day Safe Trip Demo
+          </h3>
+          <p style={{ fontSize: '0.8rem', color: '#475569', margin: '0 0 0.85rem', lineHeight: '1.45' }}>
+            Complete 2-day verified circuit: <strong>Bengaluru ➔ Mysuru Palace ➔ Mysuru Zoo (Official entry & timings) ➔ Chamundi Hill ➔ KRS / Brindavan Gardens</strong>. Includes real OSRM routing, live danger zone caution alerts & SOS dispatch.
+          </p>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+            <div style={{ fontSize: '0.75rem', color: '#64748b' }}>
+              Includes 7-Stage Live Interactive Simulation
+            </div>
+
+            <button
+              onClick={() => {
+                loginAsTourist({
+                  touristId: 'TG-2026-752019',
+                  touristTag: 'TG-2026-752019',
+                  name: 'Pavana Sharma',
+                  mobile: '+91 98765 43210',
+                  role: 'tourist'
+                });
+                onClose();
+                navigate('/mysuru-demo');
+              }}
+              className="btn btn-primary"
+              style={{ fontSize: '0.82rem', padding: '0.45rem 1rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+            >
+              <span>Launch Mysuru Safe Trip</span>
+              <ArrowRight size={14} />
+            </button>
+          </div>
+        </div>
+
         {/* 4 Demo Scenario Cards */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1.5rem' }}>
           {scenarios.map((sc, idx) => (

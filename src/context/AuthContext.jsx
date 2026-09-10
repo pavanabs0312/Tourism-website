@@ -125,37 +125,88 @@ export const FIXED_TOURIST_PRESETS = [
   }
 ];
 
-const DEFAULT_TOURIST = FIXED_TOURIST_PRESETS[0]; // 1st Person: Own Car (2 People)
+export const DEMO_TOURIST_USER = {
+  id: 'demo-tourist-001',
+  touristId: 'TG-DEMO-001',
+  touristTag: 'TG-DEMO-001',
+  name: 'Demo Tourist',
+  mobile: '+91 98765 43210',
+  email: 'demo.tourist@guardian.in',
+  emergencyContact: 'Emergency Command Desk',
+  emergencyContactNumber: '+91 821 2418400',
+  preferredLanguage: 'English / Kannada',
+  selectedTransport: 'car',
+  selectedTransportLabel: '🚗 Car (Expressway Corridor)',
+  travellersCount: 2,
+  groupSize: 2,
+  groupMembers: [
+    { name: 'Demo Tourist (Lead)', mobile: '+91 98765 43210', status: 'GPS Active', isLead: true },
+    { name: 'Co-Traveler', mobile: '+91 98765 43211', status: 'Anchor Connected', isLead: false }
+  ],
+  role: 'Tourist',
+  status: 'ONLINE',
+  riskScore: 12,
+  riskLevel: 'SAFE',
+  tripStatus: 'NOT_STARTED',
+  sosStatus: 'INACTIVE'
+};
 
-const DEFAULT_AUTHORITY = {
+const DEFAULT_TOURIST = DEMO_TOURIST_USER;
+
+export const DEFAULT_AUTHORITY = {
   id: 'auth-001',
   name: 'Officer K. Naik',
+  officer: 'K. Naik',
+  officerName: 'K. Naik',
   badgeNumber: 'KA-POL-MY-4402',
+  officerId: 'KA-POL-MY-4402',
   department: 'Mysuru City Police & Tourism Safety Wing',
-  role: 'authority'
+  role: 'Police & Tourism Command'
 };
 
 export const AuthProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(() => {
     try {
       const saved = localStorage.getItem('atg_current_user');
-      return saved ? JSON.parse(saved) : DEFAULT_TOURIST;
+      return saved ? JSON.parse(saved) : null;
     } catch (e) {
-      return DEFAULT_TOURIST;
+      return null;
     }
   });
 
   const [activeMode, setActiveMode] = useState(() => {
     try {
-      return localStorage.getItem('atg_active_mode') || 'TOURIST';
+      return localStorage.getItem('atg_active_mode') || 'PUBLIC';
     } catch (e) {
-      return 'TOURIST';
+      return 'PUBLIC';
     }
   });
+
+  // User Saved Destinations (Wishlist)
+  const [savedDestinations, setSavedDestinations] = useState(() => {
+    try {
+      const saved = localStorage.getItem('atg_saved_destinations');
+      return saved ? JSON.parse(saved) : ['mysuru'];
+    } catch (e) {
+      return ['mysuru'];
+    }
+  });
+
+  // User Bookings (Live sync from firebaseService)
+  const [bookings, setBookings] = useState([]);
+
+  useEffect(() => {
+    const unsub = firebaseService.subscribeBookings((allBookings) => {
+      setBookings(allBookings);
+    });
+    return () => unsub();
+  }, []);
 
   useEffect(() => {
     if (currentUser) {
       localStorage.setItem('atg_current_user', JSON.stringify(currentUser));
+    } else {
+      localStorage.removeItem('atg_current_user');
     }
   }, [currentUser]);
 
@@ -163,13 +214,49 @@ export const AuthProvider = ({ children }) => {
     localStorage.setItem('atg_active_mode', activeMode);
   }, [activeMode]);
 
-  // Switch between Tourist Mode and Authority Mode
+  useEffect(() => {
+    localStorage.setItem('atg_saved_destinations', JSON.stringify(savedDestinations));
+  }, [savedDestinations]);
+
+  const toggleSaveDestination = (destinationId) => {
+    if (!currentUser) return false; // Requires login
+    setSavedDestinations(prev => {
+      if (prev.includes(destinationId)) {
+        return prev.filter(id => id !== destinationId);
+      }
+      return [...prev, destinationId];
+    });
+    return true;
+  };
+
+  const isDestinationSaved = (destinationId) => {
+    return savedDestinations.includes(destinationId);
+  };
+
+  const addBooking = async (bookingData) => {
+    const touristId = currentUser?.touristId || 'TG-2026-752019';
+    const touristName = currentUser?.name || 'Pavana Sharma';
+    const contactNumber = currentUser?.mobile || '+91 98765 43210';
+
+    const newBooking = await firebaseService.createBooking({
+      ...bookingData,
+      touristId,
+      touristName,
+      contactNumber
+    });
+
+    return newBooking;
+  };
+
+  // Switch between Tourist Mode, Authority Mode, and Public Mode
   const setMode = (mode) => {
     setActiveMode(mode);
     if (mode === 'AUTHORITY') {
       setCurrentUser(DEFAULT_AUTHORITY);
-    } else if (currentUser?.role === 'authority') {
+    } else if (mode === 'TOURIST' && (!currentUser || currentUser.role === 'authority')) {
       setCurrentUser(DEFAULT_TOURIST);
+    } else if (mode === 'PUBLIC') {
+      setCurrentUser(null);
     }
   };
 
@@ -221,8 +308,8 @@ export const AuthProvider = ({ children }) => {
     return preset;
   };
 
-  // Login Existing Tourist by Tourist Tag or Mobile Number
-  const loginExistingTourist = async (queryStr) => {
+  // Login Existing Tourist by Tourist Tag or Mobile Number or Email
+  const loginExistingTourist = async (queryStr, password = '') => {
     const existing = await firebaseService.getTouristByTagOrMobile(queryStr);
     if (existing) {
       const restoredUser = {
@@ -239,13 +326,28 @@ export const AuthProvider = ({ children }) => {
     const matchPreset = FIXED_TOURIST_PRESETS.find(p => 
       p.touristTag.toLowerCase().includes(queryStr.toLowerCase()) || 
       p.mobile.includes(queryStr) || 
-      p.name.toLowerCase().includes(queryStr.toLowerCase())
+      p.name.toLowerCase().includes(queryStr.toLowerCase()) ||
+      p.email?.toLowerCase().includes(queryStr.toLowerCase())
     );
 
     if (matchPreset) {
       setCurrentUser(matchPreset);
       setActiveMode('TOURIST');
       return { success: true, tourist: matchPreset };
+    }
+
+    // If email provided without prior record, generate demo session for traveler
+    if (queryStr.includes('@')) {
+      const newDemoUser = {
+        ...DEFAULT_TOURIST,
+        name: queryStr.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+        email: queryStr,
+        touristId: generateTouristId(),
+        touristTag: generateTouristId()
+      };
+      setCurrentUser(newDemoUser);
+      setActiveMode('TOURIST');
+      return { success: true, tourist: newDemoUser };
     }
 
     return { success: false, error: 'No tourist profile found for this Tourist Tag or mobile number.' };
@@ -255,33 +357,77 @@ export const AuthProvider = ({ children }) => {
     const user = customData || DEFAULT_TOURIST;
     setCurrentUser(user);
     setActiveMode('TOURIST');
+    try {
+      localStorage.setItem('atg_current_user', JSON.stringify(user));
+      localStorage.setItem('atg_active_mode', 'TOURIST');
+    } catch (e) {
+      console.error(e);
+    }
+    return user;
+  };
+
+  const loginAsDemoTourist = () => {
+    setCurrentUser(DEMO_TOURIST_USER);
+    setActiveMode('TOURIST');
+    try {
+      localStorage.setItem('atg_current_user', JSON.stringify(DEMO_TOURIST_USER));
+      localStorage.setItem('atg_active_mode', 'TOURIST');
+    } catch (e) {
+      console.error(e);
+    }
+    return DEMO_TOURIST_USER;
   };
 
   const loginAsAuthority = () => {
     setCurrentUser(DEFAULT_AUTHORITY);
     setActiveMode('AUTHORITY');
+    try {
+      localStorage.setItem('atg_current_user', JSON.stringify(DEFAULT_AUTHORITY));
+      localStorage.setItem('atg_active_mode', 'AUTHORITY');
+    } catch (e) {
+      console.error(e);
+    }
+    return DEFAULT_AUTHORITY;
   };
 
   const logout = () => {
-    setCurrentUser(DEFAULT_TOURIST);
+    setCurrentUser(null);
+    setActiveMode('PUBLIC');
     localStorage.removeItem('atg_current_user');
+    localStorage.setItem('atg_active_mode', 'PUBLIC');
   };
+
+  const isAuthenticated = Boolean(currentUser);
+  const isTourist = isAuthenticated && (activeMode === 'TOURIST' || currentUser?.role === 'tourist' || currentUser?.role === 'Tourist');
+  const isAuthority = isAuthenticated && (activeMode === 'AUTHORITY' || currentUser?.role === 'authority' || currentUser?.role === 'Police & Tourism Command');
 
   return (
     <AuthContext.Provider
       value={{
         currentUser,
+        isAuthenticated,
         activeMode,
         setMode,
         registerTourist,
         loadPresetTourist,
         loginExistingTourist,
         loginAsTourist,
+        loginAsDemoTourist,
         loginAsAuthority,
         logout,
         fixedPresets: FIXED_TOURIST_PRESETS,
-        isTourist: activeMode === 'TOURIST',
-        isAuthority: activeMode === 'AUTHORITY'
+        demoTouristUser: DEMO_TOURIST_USER,
+        defaultAuthorityUser: DEFAULT_AUTHORITY,
+        isTourist,
+        isAuthority,
+        savedDestinations,
+        toggleSaveDestination,
+        isDestinationSaved,
+        bookings,
+        addBooking,
+        userBookings: currentUser?.touristId 
+          ? bookings.filter(b => b.touristId === currentUser.touristId || b.touristTag === currentUser.touristId)
+          : bookings
       }}
     >
       {children}
